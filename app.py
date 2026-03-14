@@ -27,6 +27,7 @@ import json
 import os
 import sys
 import threading
+import time as _time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -82,6 +83,94 @@ templates.env.globals["v"] = CACHE_VERSION
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# ------------------------------------------------------------------
+# Scrape progress tracker (in-memory, resets on restart)
+# ------------------------------------------------------------------
+scrape_progress = {
+    "active": False,
+    "current_source": None,
+    "completed": [],
+    "total_sources": 0,
+    "started_at": None,
+}
+_scrape_lock = threading.Lock()
+
+
+def _run_scrape_with_progress(source_list=None, tier_val=1):
+    """Run scrape while updating progress state for the frontend."""
+    from scrape_jobs import (
+        FIRECRAWL_SOURCES, NATIVE_SOURCES, init_db as scrape_init_db,
+        get_connection as scrape_conn, firecrawl_scrape, upsert_jobs,
+        load_negative_keywords, log_error, archive_old_jobs,
+    )
+
+    scrape_init_db()
+    conn = scrape_conn()
+
+    all_sources = {}
+    for k, v in FIRECRAWL_SOURCES.items():
+        all_sources[k] = {**v, "_method": "firecrawl"}
+    for k, v in NATIVE_SOURCES.items():
+        all_sources[k] = {**v, "_method": "native"}
+
+    if source_list:
+        targets = [s for s in source_list if s in all_sources]
+    else:
+        targets = [k for k, v in all_sources.items() if v.get("tier", 1) <= tier_val]
+
+    with _scrape_lock:
+        scrape_progress["active"] = True
+        scrape_progress["completed"] = []
+        scrape_progress["total_sources"] = len(targets)
+        scrape_progress["started_at"] = datetime.now(timezone.utc).isoformat()
+
+    negative_kws = load_negative_keywords()
+
+    for name in targets:
+        src = all_sources[name]
+        method = src["_method"]
+
+        with _scrape_lock:
+            scrape_progress["current_source"] = name
+
+        try:
+            if method == "native":
+                jobs_raw = src["fn"]()
+            else:
+                result = firecrawl_scrape(src["url"])
+                jobs_raw = []
+                if not result:
+                    log_error(name, src["url"], None, "Firecrawl returned None", conn)
+                elif "extract" in result and isinstance(result["extract"], dict):
+                    jobs_raw = result["extract"].get("jobs") or []
+                elif "data" in result and isinstance(result["data"], dict):
+                    jobs_raw = result["data"].get("extract", {}).get("jobs") or []
+
+            ins = upd = 0
+            if jobs_raw:
+                ins, upd = upsert_jobs(jobs_raw, name, conn, negative_kws)
+
+            with _scrape_lock:
+                scrape_progress["completed"].append({
+                    "source": name, "new": ins, "updated": upd,
+                })
+        except Exception as e:
+            print(f"  [error] {name}: {e}")
+            with _scrape_lock:
+                scrape_progress["completed"].append({
+                    "source": name, "new": 0, "updated": 0, "error": str(e),
+                })
+
+        _time.sleep(1)
+
+    archive_old_jobs(conn, max_age_days=3)
+    conn.close()
+
+    with _scrape_lock:
+        scrape_progress["active"] = False
+        scrape_progress["current_source"] = None
+
+
 # Initialize DB on startup
 @app.on_event("startup")
 def startup():
@@ -93,10 +182,7 @@ def startup():
     conn.close()
     if count == 0:
         print("[startup] No jobs found — triggering background scrape")
-        def _bg_scrape():
-            from scrape_jobs import scrape
-            scrape(tier=1)
-        threading.Thread(target=_bg_scrape, daemon=True).start()
+        threading.Thread(target=_run_scrape_with_progress, kwargs={"tier_val": 1}, daemon=True).start()
 
 
 def _archive_old_jobs():
@@ -420,18 +506,28 @@ async def analytics():
 # ------------------------------------------------------------------
 @app.post("/api/scrape/run")
 async def trigger_scrape(
-    background_tasks: BackgroundTasks,
     sources: Optional[str] = None,  # comma-separated
     tier: int = 1,
 ):
-    """Trigger a background scrape job."""
-    def run_scrape(source_list, tier_val):
-        from scrape_jobs import scrape
-        scrape(sources_to_run=source_list, tier=tier_val)
+    """Trigger a background scrape job with progress tracking."""
+    with _scrape_lock:
+        if scrape_progress["active"]:
+            return {"status": "already running", "progress": dict(scrape_progress)}
 
     source_list = [s.strip() for s in sources.split(",")] if sources else None
-    background_tasks.add_task(run_scrape, source_list, tier)
-    return {"status": "scraping started", "sources": source_list or f"tier-{tier} defaults"}
+    threading.Thread(
+        target=_run_scrape_with_progress,
+        kwargs={"source_list": source_list, "tier_val": tier},
+        daemon=True,
+    ).start()
+    return {"status": "scraping started"}
+
+
+@app.get("/api/scrape/status")
+async def scrape_status():
+    """Return current scrape progress for the frontend."""
+    with _scrape_lock:
+        return dict(scrape_progress)
 
 
 # ------------------------------------------------------------------

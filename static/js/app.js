@@ -1,6 +1,7 @@
 // ─── STATE ───────────────────────────────────────────────────────
 let currentJobs = [];
 let currentDetailJobId = null;
+let initialLoadDone = false;
 
 const SOURCE_COLORS = {
   remote_ok:          '#2B2B2B',
@@ -410,7 +411,10 @@ async function loadApplicationStats() {
 // ─── MAIN LOADER ─────────────────────────────────────────────────
 async function loadJobs(params = {}) {
   const list = document.getElementById('job-list');
-  list.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading jobs…</div>`;
+  // Only show loading placeholder on first load, not during poll refreshes
+  if (!initialLoadDone) {
+    list.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Loading jobs…</div>`;
+  }
 
   try {
     const data  = await fetchJobs(params);
@@ -419,10 +423,13 @@ async function loadJobs(params = {}) {
     document.getElementById('job-count').textContent  = total;
     document.getElementById('stat-total').textContent = total;
     renderJobs(currentJobs);
+    initialLoadDone = true;
   } catch (_) {
-    list.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red)">
-      Failed to load jobs. Is the server running?
-    </div>`;
+    if (!initialLoadDone) {
+      list.innerHTML = `<div style="padding:40px;text-align:center;color:var(--red)">
+        Failed to load jobs. Is the server running?
+      </div>`;
+    }
   }
 }
 
@@ -467,13 +474,64 @@ async function triggerScrape() {
     await fetch('/api/scrape/run', { method: 'POST' });
   } catch (_) {}
 
-  // Poll every 8s for up to 2 minutes, refreshing jobs + stats each tick
-  let ticks = 0;
-  const poll = setInterval(async () => {
-    ticks++;
-    await Promise.all([loadJobs(getFilterParams()), loadScrapeStats()]);
-    if (ticks >= 15) {
-      clearInterval(poll);
+  startScrapeStatusPoll();
+}
+
+// ─── SCRAPE STATUS POLLING ───────────────────────────────────────
+let scrapePollInterval = null;
+
+function startScrapeStatusPoll() {
+  if (scrapePollInterval) return; // already polling
+  scrapePollInterval = setInterval(pollScrapeStatus, 2000);
+  pollScrapeStatus(); // immediate first check
+}
+
+async function pollScrapeStatus() {
+  const banner = document.getElementById('scrape-banner');
+  const btn = document.getElementById('scrape-btn');
+
+  try {
+    const res = await fetch('/api/scrape/status');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (!data.active && data.completed.length === 0) {
+      // No scrape running or completed
+      banner.style.display = 'none';
+      return;
+    }
+
+    if (data.active) {
+      banner.style.display = 'block';
+      const done = data.completed.length;
+      const total = data.total_sources;
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      const currentLabel = SOURCE_LABELS[data.current_source] || data.current_source || '…';
+      const elapsed = data.started_at ? Math.round((Date.now() - new Date(data.started_at)) / 1000) : 0;
+      const avgPerSource = done > 0 ? elapsed / done : 8; // estimate ~8s per source
+      const remaining = Math.max(0, Math.round(avgPerSource * (total - done)));
+
+      document.getElementById('scrape-banner-status').textContent = `Scraping ${currentLabel}…`;
+      document.getElementById('scrape-banner-detail').textContent =
+        remaining > 60 ? `~${Math.ceil(remaining / 60)} min remaining` : `~${remaining}s remaining`;
+      document.getElementById('scrape-banner-count').textContent = `${done}/${total}`;
+      document.getElementById('scrape-banner-fill').style.width = `${pct}%`;
+
+      // Refresh job list and stats while scraping
+      await Promise.all([loadJobs(getFilterParams()), loadScrapeStats()]);
+    } else {
+      // Scrape just finished
+      const totalNew = data.completed.reduce((sum, s) => sum + (s.new || 0), 0);
+      document.getElementById('scrape-banner-status').textContent = 'Scrape complete';
+      document.getElementById('scrape-banner-detail').textContent =
+        `Found ${totalNew} new job${totalNew !== 1 ? 's' : ''} from ${data.completed.length} sources`;
+      document.getElementById('scrape-banner-count').textContent = '';
+      document.getElementById('scrape-banner-fill').style.width = '100%';
+      document.getElementById('scrape-banner').querySelector('svg').classList.remove('spin');
+
+      await Promise.all([loadJobs(getFilterParams()), loadScrapeStats()]);
+
+      // Reset button
       btn.disabled = false;
       btn.innerHTML = `
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -481,8 +539,14 @@ async function triggerScrape() {
           <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
         </svg>
         Refresh`;
+
+      clearInterval(scrapePollInterval);
+      scrapePollInterval = null;
+
+      // Hide banner after a few seconds
+      setTimeout(() => { banner.style.display = 'none'; }, 5000);
     }
-  }, 8000);
+  } catch (_) {}
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────
@@ -490,3 +554,8 @@ loadJobs();
 loadApplicationStats();
 loadScrapeStats();
 loadNegativeKeywords();
+
+// If a scrape is already running (e.g. startup auto-scrape), start polling
+fetch('/api/scrape/status').then(r => r.json()).then(data => {
+  if (data.active) startScrapeStatusPoll();
+}).catch(() => {});

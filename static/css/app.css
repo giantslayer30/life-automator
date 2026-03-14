@@ -1548,3 +1548,56 @@
     }
     .filter-panel.open { transform: translateX(0); }
   }
+
+  /* ── Scrape progress banner ─────────────────────────────────── */
+  .scrape-banner {
+    background: var(--accent-light);
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-md);
+    padding: 12px 16px 8px;
+    margin-bottom: 12px;
+  }
+  .scrape-banner-inner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .scrape-banner-inner svg { color: var(--accent); flex-shrink: 0; }
+  .scrape-banner-text {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+  }
+  #scrape-banner-status {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+  .scrape-banner-sub {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+  }
+  .scrape-banner-count {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .scrape-banner-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 4px;
+    margin-top: 10px;
+    overflow: hidden;
+  }
+  .scrape-banner-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.4s ease;
+  }
