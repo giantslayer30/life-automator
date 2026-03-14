@@ -26,6 +26,7 @@ Endpoints:
 import json
 import os
 import sys
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -86,6 +87,16 @@ if STATIC_DIR.exists():
 def startup():
     init_db()
     _archive_old_jobs()
+    # Auto-scrape if the DB is empty (e.g. fresh deploy on Render)
+    conn = get_connection()
+    count = conn.execute("SELECT COUNT(*) FROM jobs WHERE is_archived = 0").fetchone()[0]
+    conn.close()
+    if count == 0:
+        print("[startup] No jobs found — triggering background scrape")
+        def _bg_scrape():
+            from scrape_jobs import scrape
+            scrape(tier=1)
+        threading.Thread(target=_bg_scrape, daemon=True).start()
 
 
 def _archive_old_jobs():
