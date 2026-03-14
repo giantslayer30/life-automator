@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find '/Users/apple/Documents/life automator' -type f -name *.md -o -name *.json -o -name *.txt -o -name *.py -o -name *.js -o -name *.ts -o -name *.yml -o -name *.yaml)",
+      "Bash(python3 - <<'EOF'\nwith open\\('/Users/apple/Downloads/index.html', 'r'\\) as f:\n    content = f.read\\(\\)\n\n# Find style block\nstyle_start = content.index\\('<style>'\\) + len\\('<style>'\\)\nstyle_end = content.index\\('</style>'\\)\ncss = content[style_start:style_end].strip\\(\\)\n\n# Find script block\nscript_start = content.index\\('<script>'\\) + len\\('<script>'\\)\nscript_end = content.rindex\\('</script>'\\)\njs = content[script_start:script_end].strip\\(\\)\n\n# HTML: everything in body between style/script\nprint\\(f\"CSS length: {len\\(css\\)} chars\"\\)\nprint\\(f\"JS length: {len\\(js\\)} chars\"\\)\nprint\\(f\"Total HTML: {len\\(content\\)} chars\"\\)\n\n# Check for sampleJobs or hardcoded data\nimport re\nsample_jobs_match = re.search\\(r'\\(const|let|var\\)\\\\s+sample', js\\)\nprint\\(f\"Has sampleJobs: {sample_jobs_match}\"\\)\n\n# Show first 200 chars of js to understand structure\nprint\\(\"\\\\n--- JS START ---\"\\)\nprint\\(js[:500]\\)\nprint\\(\"\\\\n--- JS END ---\"\\)\nprint\\(js[-200:]\\)\nEOF)",
+      "Bash(python3 - <<'EOF'\nwith open\\('/Users/apple/Downloads/index.html', 'r'\\) as f:\n    content = f.read\\(\\)\n\n# Find JS block\nscript_start = content.index\\('<script>'\\) + len\\('<script>'\\)\nscript_end = content.rindex\\('</script>'\\)\njs = content[script_start:script_end].strip\\(\\)\n\nprint\\(js\\)\nEOF)",
+      "Bash(python3 - <<'EOF'\nwith open\\('/Users/apple/Downloads/index.html', 'r'\\) as f:\n    content = f.read\\(\\)\n\n# Extract CSS\nstyle_start = content.index\\('<style>'\\) + len\\('<style>'\\)\nstyle_end = content.index\\('</style>'\\)\ncss = content[style_start:style_end].strip\\(\\)\nprint\\(\"=== CSS ===\"\\)\nprint\\(css\\)\nEOF)",
+      "Bash(python3 - <<'EOF'\nwith open\\('/Users/apple/Downloads/index.html', 'r'\\) as f:\n    content = f.read\\(\\)\n\n# Extract body content \\(between <body> and </body>, minus the script block\\)\nbody_start = content.index\\('<body>'\\) + len\\('<body>'\\)\nbody_end = content.rindex\\('</body>'\\)\nbody = content[body_start:body_end]\n\n# Remove the script block from body\nscript_start = body.index\\('<script>'\\)\nscript_end = body.rindex\\('</script>'\\) + len\\('</script>'\\)\nhtml_body = \\(body[:script_start] + body[script_end:]\\).strip\\(\\)\n\nprint\\(html_body\\)\nEOF)"
+    ],
+    "deny": [
+      "Read(**/.env*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/secrets/**)",
+      "Read(**/credentials/**)",
+      "Read(**/.aws/**)",
+      "Read(**/.ssh/**)",
+      "Read(**/docker-compose*.yml)",
+      "Read(**/config/database.yml)"
+    ]
+  }
+}

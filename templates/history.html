@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAT — Applications</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css?v={{ v }}">
+</head>
+<body>
+
+<div class="app app-history">
+  <!-- TOP NAV -->
+  <nav class="top-nav">
+    <div style="display:flex;align-items:center;gap:32px;">
+      <div class="nav-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        WAT
+      </div>
+      <div class="nav-tabs">
+        <a class="nav-tab" href="/">Jobs</a>
+        <a class="nav-tab active" href="/history">Applications</a>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="avatar">A</div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main class="history-content">
+    <!-- Stats strip -->
+    <div class="stats-strip">
+      <div class="stat-card-h">
+        <div class="stat-num" id="statTotal">--</div>
+        <div class="stat-label-h">Total Applied</div>
+      </div>
+      <div class="stat-card-h">
+        <div class="stat-num" id="statInterviewing">--</div>
+        <div class="stat-label-h">Interviewing</div>
+      </div>
+      <div class="stat-card-h accent">
+        <div class="stat-num" id="statOffers">--</div>
+        <div class="stat-label-h">Offers</div>
+      </div>
+      <div class="stat-card-h">
+        <div class="stat-num" id="statRejected">--</div>
+        <div class="stat-label-h">Rejected</div>
+      </div>
+      <div class="stat-card-h">
+        <div class="stat-num" id="statGhosted">--</div>
+        <div class="stat-label-h">Ghosted</div>
+      </div>
+      <div class="stat-card-h">
+        <div class="stat-num" id="statAvgDays">--</div>
+        <div class="stat-label-h">Avg days to outcome</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="history-filters">
+      <select id="histFilterStatus" class="hist-select">
+        <option value="">All Statuses</option>
+      </select>
+      <input type="text" id="histSearch" placeholder="Search company or title..." class="hist-search">
+    </div>
+
+    <!-- Table -->
+    <div class="app-table-wrap">
+      <table class="app-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Company</th>
+            <th>Role</th>
+            <th>Source</th>
+            <th>Applied</th>
+            <th>Status</th>
+            <th>Days</th>
+            <th>AI</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="appTableBody">
+          <tr><td colspan="9" class="table-empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<!-- STATUS UPDATE MODAL -->
+<div class="modal-overlay" id="statusModal" style="display:none">
+  <div class="modal modal-sm">
+    <button class="modal-close" id="closeStatusModal">&times;</button>
+    <h3 id="statusModalTitle">Update Status</h3>
+    <div class="status-chips" id="statusChips"></div>
+    <div class="modal-section">
+      <input type="text" id="customStatusInput" placeholder="Or type a custom status..." class="hist-search">
+    </div>
+    <div id="feedbackSection" class="modal-section" style="display:none">
+      <label class="label">Feedback received <span style="color:var(--text-muted)">(optional)</span></label>
+      <textarea id="feedbackText" class="hist-textarea" rows="3" placeholder="What was the feedback?"></textarea>
+      <div class="radio-group">
+        <label><input type="radio" name="fbChannel" value="none" checked> No feedback</label>
+        <label><input type="radio" name="fbChannel" value="email"> Email</label>
+        <label><input type="radio" name="fbChannel" value="call"> Call</label>
+      </div>
+    </div>
+    <div class="modal-section">
+      <label class="label">Superfolio URL <span style="color:var(--text-muted)">(optional)</span></label>
+      <input type="url" id="statusSuperfolio" placeholder="https://superfolio.co/u/you/job" class="hist-search">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-clear" id="cancelStatus">Cancel</button>
+      <button class="btn-primary" id="saveStatus" style="padding:8px 20px;border-radius:var(--radius-sm);font-size:14px;cursor:pointer;">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/history.js?v={{ v }}"></script>
+</body>
+</html>

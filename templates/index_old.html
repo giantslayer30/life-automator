@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JobFlow — Your Design Career Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+
+<!-- ─── NAV ─────────────────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-brand">JobFlow</div>
+  <div class="nav-links">
+    <a href="/" class="active">Jobs</a>
+    <a href="/history">My Applications</a>
+  </div>
+  <div class="nav-actions">
+    <button class="btn btn-ghost" id="btnScrapeNow">↻ Refresh Jobs</button>
+    <button class="btn btn-primary" id="btnUploadResume">Upload Resume</button>
+  </div>
+</nav>
+
+<!-- ─── HERO / FILTER BAR ────────────────────────────────────────── -->
+<div class="filter-bar">
+  <div class="filter-bar-inner">
+    <div class="search-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="searchInput" placeholder="Search jobs, companies…" autocomplete="off">
+    </div>
+
+    <div class="filters">
+      <div class="ms-wrap">
+        <button class="ms-trigger" id="filterSourceTrigger" onclick="toggleDropdown('filterSourceList')">All Sources ▾</button>
+        <div class="ms-list" id="filterSourceList" style="display:none"></div>
+      </div>
+
+      <div class="ms-wrap">
+        <button class="ms-trigger" id="filterLocationTrigger" onclick="toggleDropdown('filterLocationList')">All Locations ▾</button>
+        <div class="ms-list" id="filterLocationList" style="display:none"></div>
+      </div>
+
+      <label class="toggle-label">
+        <input type="checkbox" id="filterRemote"> Remote only
+      </label>
+
+      <label class="toggle-label ai-toggle">
+        <input type="checkbox" id="filterAI">
+        <span class="ai-badge-small">🤖 AI</span> AI skills required
+      </label>
+    </div>
+
+    <div class="block-wrap">
+      <span class="search-icon block-icon">✕</span>
+      <div class="block-tags" id="blockTags"></div>
+      <input
+        type="text"
+        id="blockKeywordInput"
+        placeholder="Block keyword…"
+        autocomplete="off"
+      >
+    </div>
+
+    <div class="sort-wrap">
+      <span id="jobCount" class="job-count">–</span>
+    </div>
+  </div>
+</div>
+
+<!-- ─── MAIN LAYOUT ──────────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Job list -->
+  <div class="job-list" id="jobList">
+    <div class="loading-state" id="loadingState">
+      <div class="spinner"></div>
+      <p>Loading jobs…</p>
+    </div>
+  </div>
+
+  <!-- Job detail panel -->
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-empty">
+      <div class="detail-empty-icon">✦</div>
+      <p>Select a job to view details</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── APPLY MODAL ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="applyModal" style="display:none">
+  <div class="modal">
+    <button class="modal-close" id="closeApplyModal">✕</button>
+    <h2 id="applyModalTitle">Apply to Job</h2>
+
+    <div class="modal-section">
+      <label class="label">Resume</label>
+      <div class="resume-select" id="resumeSelect">
+        <span class="resume-preview-link" id="resumeLabel">No resume uploaded</span>
+        <a href="#" id="previewPdfLink" target="_blank" class="link-small" style="display:none">Preview PDF ↗</a>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <label class="label">Superfolio URL <span class="label-optional">(optional)</span></label>
+      <input type="url" id="superfolioInput" placeholder="https://superfolio.co/u/you/company-job" class="input">
+      <small class="hint">Paste your custom Superfolio link for this application to track portfolio views.</small>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="cancelApply">Cancel</button>
+      <button class="btn btn-primary" id="confirmApply">Apply Now</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── RESUME UPLOAD MODAL ──────────────────────────────────────── -->
+<div class="modal-overlay" id="resumeModal" style="display:none">
+  <div class="modal modal-wide">
+    <button class="modal-close" id="closeResumeModal">✕</button>
+    <h2>Resume Manager</h2>
+
+    <div class="resume-tabs">
+      <button class="tab-btn active" data-tab="upload">Upload / Edit</button>
+      <button class="tab-btn" data-tab="versions">Versions</button>
+    </div>
+
+    <div class="tab-content" id="tabUpload">
+      <label class="label">Upload Resume <span class="label-optional">(.docx — Microsoft Word)</span></label>
+      <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('resumeFile').click()">
+        <input type="file" id="resumeFile" accept=".docx" style="display:none">
+        <div id="fileUploadPrompt">
+          <div style="font-size:28px;margin-bottom:6px">📄</div>
+          <div style="font-weight:500">Click to choose your .docx file</div>
+          <small>Microsoft Word format only</small>
+        </div>
+        <div id="fileUploadName" class="file-chosen" style="display:none"></div>
+      </div>
+      <div class="resume-upload-actions">
+        <input type="text" id="resumeLabelInput" placeholder="Label (e.g. Senior UX – compact)" class="input" style="flex:1">
+        <button class="btn btn-primary" id="saveResumeBtn">Save & Generate PDF</button>
+      </div>
+      <div id="resumeSaveStatus" class="status-msg" style="display:none"></div>
+    </div>
+
+    <div class="tab-content" id="tabVersions" style="display:none">
+      <div id="versionList" class="version-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── APPLY ALL CONFIRMATION ───────────────────────────────────── -->
+<div class="toast-bar" id="applyAllToast" style="display:none">
+  <span id="applyAllMsg"></span>
+  <button class="btn btn-sm btn-primary" id="confirmApplyAll">Confirm Apply All</button>
+  <button class="btn btn-sm btn-ghost" id="cancelApplyAll">Cancel</button>
+</div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

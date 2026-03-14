@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAT — Job Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/css/app.css?v={{ v }}">
+</head>
+<body>
+
+<div class="app">
+  <!-- TOP NAV -->
+  <nav class="top-nav">
+    <div style="display:flex;align-items:center;gap:32px;">
+      <div class="nav-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+          <path d="M2 17l10 5 10-5"/>
+          <path d="M2 12l10 5 10-5"/>
+        </svg>
+        WAT
+      </div>
+      <div class="nav-tabs">
+        <a class="nav-tab active" href="/">Jobs</a>
+        <a class="nav-tab" href="/history">Applications</a>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <div class="avatar">A</div>
+    </div>
+  </nav>
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar">
+    <div class="profile-card">
+      <div class="profile-avatar">A</div>
+      <div class="profile-name">Anvita</div>
+      <div class="profile-role">Senior Product Designer</div>
+      <a href="/history"><button class="profile-btn">View Applications</button></a>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number" id="stat-total">—</div>
+        <div class="stat-label">Jobs Found</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="stat-applied">—</div>
+        <div class="stat-label">Applied</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Recent Applications</h3>
+      <div id="recent-apps">
+        <div style="font-size:13px;color:var(--text-muted)">Loading…</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <h3 style="margin-bottom:0">Portals</h3>
+        <button class="scrape-btn" id="scrape-btn" onclick="triggerScrape()" title="Scrape new jobs">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+            <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+      <div id="scrape-stats">
+        <div style="font-size:13px;color:var(--text-muted)">Loading…</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+    <div class="search-row">
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        <input type="text" placeholder="Search by title, company, or keywords…" id="search-input">
+      </div>
+    </div>
+
+    <div class="results-header">
+      <div class="results-title">"<span>All Jobs</span>" Results</div>
+      <div class="results-count">Showing <strong id="job-count">—</strong> jobs</div>
+    </div>
+
+    <div class="active-filters" id="active-filters"></div>
+
+    <div class="job-list" id="job-list">
+      <div style="padding:40px;text-align:center;color:var(--text-muted)">Loading jobs…</div>
+    </div>
+  </main>
+
+  <!-- RIGHT FILTER PANEL -->
+  <aside class="filter-panel" id="filter-panel">
+    <div class="filter-panel-header">
+      <h2>Filter</h2>
+      <button class="filter-close" id="filter-close-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="filter-section">
+      <h3>Job Source</h3>
+      <div class="source-options">
+        <label class="source-option"><input type="checkbox" checked data-source="remote_ok"><span class="source-icon" style="background:#2B2B2B;">R</span>Remote OK</label>
+        <label class="source-option"><input type="checkbox" checked data-source="we_work_remotely"><span class="source-icon" style="background:#FF5850;">W</span>We Work Remotely</label>
+        <label class="source-option"><input type="checkbox" checked data-source="himalayas"><span class="source-icon" style="background:#6366F1;">H</span>Himalayas</label>
+        <label class="source-option"><input type="checkbox" checked data-source="jsearch"><span class="source-icon" style="background:#0A66C2;">J</span>JSearch (LinkedIn/Indeed)</label>
+        <label class="source-option"><input type="checkbox" checked data-source="dribbble"><span class="source-icon" style="background:#EA4C89;">D</span>Dribbble</label>
+        <label class="source-option"><input type="checkbox" checked data-source="wellfound"><span class="source-icon" style="background:#000;">W</span>Wellfound</label>
+        <label class="source-option"><input type="checkbox" checked data-source="behance"><span class="source-icon" style="background:#1769FF;">B</span>Behance</label>
+        <label class="source-option"><input type="checkbox" checked data-source="naukri"><span class="source-icon" style="background:#4A90D9;">N</span>Naukri</label>
+        <label class="source-option"><input type="checkbox" checked data-source="internshala"><span class="source-icon" style="background:#00C4AA;">I</span>Internshala</label>
+        <label class="source-option"><input type="checkbox" checked data-source="arc_dev"><span class="source-icon" style="background:#6E56CF;">A</span>Arc.dev</label>
+        <label class="source-option"><input type="checkbox" checked data-source="foundit"><span class="source-icon" style="background:#F97316;">F</span>Foundit</label>
+        <label class="source-option"><input type="checkbox" checked data-source="aiga"><span class="source-icon" style="background:#222;">A</span>AIGA</label>
+      </div>
+    </div>
+
+    <div class="filter-section">
+      <h3>Toggles</h3>
+      <div class="toggle-row">
+        <span class="toggle-label">Remote only</span>
+        <div class="toggle" id="toggle-remote"></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">AI / ML skills</span>
+        <div class="toggle" id="toggle-ai"></div>
+      </div>
+    </div>
+
+    <div class="filter-section">
+      <h3>Block Keywords</h3>
+      <div class="keyword-input-wrap" id="keyword-wrap">
+        <input type="text" class="keyword-input" placeholder="Type & press Enter" id="keyword-input">
+      </div>
+    </div>
+
+    <div class="filter-actions">
+      <button class="btn-apply">Apply Filters</button>
+      <button class="btn-clear">Clear</button>
+    </div>
+  </aside>
+</div>
+
+<!-- DETAIL PANEL OVERLAY -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-panel">
+    <div class="detail-header">
+      <div class="detail-logo" id="detail-logo">?</div>
+      <div>
+        <div class="detail-title" id="detail-title"></div>
+        <div class="detail-company" id="detail-company"></div>
+      </div>
+      <button class="detail-close" onclick="closeDetail()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+        </svg>
+      </button>
+    </div>
+    <div class="detail-meta" id="detail-meta"></div>
+    <div class="detail-actions">
+      <button class="btn-primary" id="detail-link-btn">View Listing ↗</button>
+    </div>
+    <div class="applied-prompt" id="applied-prompt">
+      <span class="applied-prompt-q">Did you apply?</span>
+      <div class="applied-prompt-btns">
+        <button class="btn-yes" id="btn-applied-yes">Yes, I applied</button>
+        <button class="btn-no" id="btn-applied-no">No</button>
+      </div>
+    </div>
+    <div class="applied-superfolio" id="applied-superfolio" style="display:none">
+      <input type="url" id="superfolio-input" placeholder="Superfolio link (optional)" class="superfolio-input">
+      <button class="btn-primary" id="btn-save-applied" style="padding:8px 16px;font-size:13px;">Save</button>
+    </div>
+    <div class="applied-done" id="applied-done" style="display:none">
+      <span class="applied-check">Applied</span>
+    </div>
+    <div class="detail-desc" id="detail-desc"></div>
+    <div class="claude-prompt-section">
+      <h3>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M12 2a10 10 0 1 0 10 10H12V2z"/>
+          <path d="M20 12a8 8 0 0 0-8-8v8h8z"/>
+        </svg>
+        Tailor with Claude
+      </h3>
+      <div class="claude-prompt-box" id="claude-prompt">
+        Select a job to generate a tailoring prompt.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/app.js?v={{ v }}"></script>
+</body>
+</html>
