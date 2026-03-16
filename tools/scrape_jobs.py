@@ -174,9 +174,10 @@ def firecrawl_scrape(url: str, max_retries: int = 3) -> Optional[dict]:
     }
     payload = {
         "url": url,
-        "formats": ["extract"],
+        "formats": ["extract", "markdown"],
         "actions": [{"type": "wait", "milliseconds": 2000}],
         "extract": {
+            "prompt": "Extract all job listings from this page. For each job, capture the FULL description text (not a summary). Pay special attention to any mentions of visa sponsorship, relocation assistance, work authorization, H1B, or international candidates.",
             "schema": {
                 "type": "object",
                 "properties": {
@@ -191,9 +192,9 @@ def firecrawl_scrape(url: str, max_retries: int = 3) -> Optional[dict]:
                                 "remote":          {"type": "boolean"},
                                 "employment_type": {"type": "string"},
                                 "salary":          {"type": "string"},
-                                "description":     {"type": "string"},
+                                "description":     {"type": "string", "description": "Full job description including requirements, responsibilities, benefits, and any visa/relocation details. Do NOT summarize."},
                                 "url":             {"type": "string"},
-                                "visa_sponsorship": {"type": "boolean", "description": "Does the listing mention visa sponsorship, work authorization, H1B, relocation assistance, or hiring international candidates?"},
+                                "visa_sponsorship": {"type": "boolean", "description": "True if the listing mentions visa sponsorship, work authorization, H1B, relocation assistance, relocation package, or hiring international candidates."},
                                 "experience_years": {"type": "string", "description": "Years of experience required, e.g. '3+', '5-7'. Empty if not stated."},
                             },
                         },
@@ -449,6 +450,8 @@ def scrape_jsearch() -> list:
         # LinkedIn hiring posts — people posting "hiring" for design roles
         {"query": "hiring product designer India", "label": "hiring posts India"},
         {"query": "hiring UX designer India", "label": "hiring UX India"},
+        # Visa sponsorship design jobs
+        {"query": "product designer visa sponsorship", "label": "visa sponsorship jobs"},
     ]
 
     for q in queries:
