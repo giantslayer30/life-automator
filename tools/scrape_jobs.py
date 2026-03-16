@@ -8,7 +8,7 @@ Two types of sources:
 Usage:
     python tools/scrape_jobs.py                        # tier-1 sources (default)
     python tools/scrape_jobs.py --tier 2               # all sources
-    python tools/scrape_jobs.py --sources dribbble remote_ok
+    python tools/scrape_jobs.py --sources jsearch remote_ok
     python tools/scrape_jobs.py --validate-stale       # re-check recent listings
 
 Credit budget (3 000 credits/month):
@@ -77,6 +77,23 @@ def load_negative_keywords() -> list:
     except Exception:
         pass
     return [kw.lower() for kw in NEGATIVE_TITLE_KEYWORDS]
+
+
+GEO_EXCLUSION_PATTERNS = [
+    "us only", "u.s. only", "usa only", "united states only",
+    "eu only", "europe only", "european union only",
+    "uk only", "united kingdom only",
+    "canada only", "australia only",
+    "us-based only", "us based only",
+    "must be located in the us", "must be based in the us",
+    "us citizens only", "us residents only",
+]
+
+
+def is_geo_excluded(text: str) -> bool:
+    """Return True if the job is restricted to a region that excludes India."""
+    lowered = text.lower()
+    return any(pat in lowered for pat in GEO_EXCLUSION_PATTERNS)
 
 
 def is_design_job(title: str, negative_kws: list = None) -> bool:
@@ -342,8 +359,68 @@ def scrape_himalayas() -> list:
         return []
 
 
+def _jsearch_query(key: str, query: str, location: str = None, remote_only: bool = False) -> list:
+    """Run a single JSearch API query and return normalised job dicts."""
+    params = {
+        "query":       query,
+        "page":        "1",
+        "num_pages":   "2",
+        "date_posted": "3days",
+    }
+    if remote_only:
+        params["remote_jobs_only"] = "true"
+
+    try:
+        resp = requests.get(
+            "https://jsearch.p.rapidapi.com/search",
+            headers={
+                "X-RapidAPI-Key":  key,
+                "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
+            },
+            params=params,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        jobs_raw = resp.json().get("data") or []
+    except Exception as e:
+        print(f"    [jsearch error] {e}")
+        return []
+
+    results = []
+    for job in jobs_raw:
+        lo = job.get("job_min_salary")
+        hi = job.get("job_max_salary")
+        salary = None
+        if lo and hi:
+            period = job.get("job_salary_period") or "year"
+            salary = f"${lo:,.0f}–${hi:,.0f}/{period}"
+
+        results.append({
+            "title":           job.get("job_title") or "",
+            "company":         job.get("employer_name") or "",
+            "location":        (
+                job.get("job_city")
+                or job.get("job_state")
+                or job.get("job_country")
+                or "Remote"
+            ),
+            "remote":          bool(job.get("job_is_remote")),
+            "employment_type": (job.get("job_employment_type") or "").lower(),
+            "salary":          salary,
+            "description":     job.get("job_description") or "",
+            "url":             job.get("job_apply_link") or job.get("job_google_link") or "",
+        })
+    return results
+
+
 def scrape_jsearch() -> list:
     """JSearch API — aggregates LinkedIn + Indeed + Glassdoor.
+
+    Runs multiple queries:
+      1. Product designer remote jobs (global)
+      2. Product designer jobs in India (not necessarily remote)
+      3. UX designer jobs in India
+      4. LinkedIn "hiring" posts mentioning product/UX design in India
 
     Requires RAPIDAPI_KEY in .env.
     Free tier: 500 requests/month.
@@ -354,63 +431,34 @@ def scrape_jsearch() -> list:
         print("  [skip] RAPIDAPI_KEY not set in .env — get a free key at rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch")
         return []
 
-    try:
-        resp = requests.get(
-            "https://jsearch.p.rapidapi.com/search",
-            headers={
-                "X-RapidAPI-Key":  key,
-                "X-RapidAPI-Host": "jsearch.p.rapidapi.com",
-            },
-            params={
-                "query":       "product designer",
-                "page":        "1",
-                "num_pages":   "2",
-                "date_posted": "3days",
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        jobs_raw = resp.json().get("data") or []
+    all_results = []
 
-        results = []
-        for job in jobs_raw:
-            lo = job.get("job_min_salary")
-            hi = job.get("job_max_salary")
-            salary = None
-            if lo and hi:
-                period = job.get("job_salary_period") or "year"
-                salary = f"${lo:,.0f}–${hi:,.0f}/{period}"
+    queries = [
+        # LinkedIn/Indeed jobs in India (including non-remote)
+        {"query": "product designer in India", "label": "product designer India"},
+        {"query": "UX designer in India", "label": "UX designer India"},
+        # Remote jobs globally
+        {"query": "product designer", "label": "product designer remote", "remote_only": True},
+        # LinkedIn hiring posts — people posting "hiring" for design roles
+        {"query": "hiring product designer India", "label": "hiring posts India"},
+        {"query": "hiring UX designer remote India eligible", "label": "hiring posts remote India"},
+    ]
 
-            results.append({
-                "title":           job.get("job_title") or "",
-                "company":         job.get("employer_name") or "",
-                "location":        (
-                    job.get("job_city")
-                    or job.get("job_state")
-                    or job.get("job_country")
-                    or "Remote"
-                ),
-                "remote":          bool(job.get("job_is_remote")),
-                "employment_type": (job.get("job_employment_type") or "").lower(),
-                "salary":          salary,
-                "description":     job.get("job_description") or "",
-                "url":             job.get("job_apply_link") or job.get("job_google_link") or "",
-            })
-        return results
-    except Exception as e:
-        print(f"  [error] {e}")
-        return []
+    for q in queries:
+        print(f"    [{q['label']}] querying…")
+        results = _jsearch_query(key, q["query"], remote_only=q.get("remote_only", False))
+        print(f"    [{q['label']}] {len(results)} results")
+        all_results.extend(results)
+        time.sleep(0.5)  # respect rate limits
+
+    return all_results
 
 
 # ------------------------------------------------------------------
 # Source registries
 # ------------------------------------------------------------------
 FIRECRAWL_SOURCES: dict = {
-    # ── Tier 1: reliable, design-specific (5 credits/run) ──
-    "dribbble": {
-        "url": "https://dribbble.com/jobs?location=Anywhere",
-        "region": "global", "tier": 1,
-    },
+    # ── Tier 1: reliable, design-specific ──
     "wellfound": {
         "url": "https://wellfound.com/role/r/product-designer",
         "region": "global", "tier": 1,
@@ -459,7 +507,13 @@ FIRECRAWL_SOURCES: dict = {
 }
 
 # Native sources cost 0 Firecrawl credits
+# jsearch (LinkedIn) is first — always scrape LinkedIn before anything else
 NATIVE_SOURCES: dict = {
+    "jsearch": {
+        "fn": scrape_jsearch,
+        "label": "JSearch / LinkedIn + Indeed (RapidAPI free tier)",
+        "region": "global", "tier": 1,
+    },
     "remote_ok": {
         "fn": scrape_remoteok,
         "label": "Remote OK (public JSON API, free)",
@@ -473,11 +527,6 @@ NATIVE_SOURCES: dict = {
     "himalayas": {
         "fn": scrape_himalayas,
         "label": "Himalayas (public JSON API, free)",
-        "region": "global", "tier": 1,
-    },
-    "jsearch": {
-        "fn": scrape_jsearch,
-        "label": "JSearch / LinkedIn + Indeed (RapidAPI free tier)",
         "region": "global", "tier": 1,
     },
 }
@@ -519,8 +568,12 @@ def upsert_jobs(jobs: list, source: str, conn, negative_kws: list = None) -> tup
         if not is_design_job(title, negative_kws):
             continue
 
-        fp = job_fingerprint(company, title, location)
+        # Drop jobs geo-restricted to regions excluding India
         description = job.get("description") or ""
+        if is_geo_excluded(f"{title} {description} {location}"):
+            continue
+
+        fp = job_fingerprint(company, title, location)
         ai_tagged, ai_terms   = detect_ai_skills(description)
         visa_tagged, visa_terms = detect_visa(f"{title} {description}")
         # Also pick up Firecrawl-extracted visa flag as fallback
@@ -633,12 +686,12 @@ def scrape(sources_to_run: Optional[list] = None, tier: int = 1, validate_stale:
     init_db()
     conn = get_connection()
 
-    # Merge both registries; native sources are tagged so the loop knows how to call them
+    # Merge both registries; native sources first (jsearch/LinkedIn runs first)
     all_sources = {}
-    for k, v in FIRECRAWL_SOURCES.items():
-        all_sources[k] = {**v, "_method": "firecrawl"}
     for k, v in NATIVE_SOURCES.items():
         all_sources[k] = {**v, "_method": "native"}
+    for k, v in FIRECRAWL_SOURCES.items():
+        all_sources[k] = {**v, "_method": "firecrawl"}
 
     if sources_to_run:
         targets = [s for s in sources_to_run if s in all_sources]

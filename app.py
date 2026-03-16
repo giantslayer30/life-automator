@@ -108,10 +108,10 @@ def _run_scrape_with_progress(source_list=None, tier_val=1):
     conn = scrape_conn()
 
     all_sources = {}
-    for k, v in FIRECRAWL_SOURCES.items():
-        all_sources[k] = {**v, "_method": "firecrawl"}
     for k, v in NATIVE_SOURCES.items():
         all_sources[k] = {**v, "_method": "native"}
+    for k, v in FIRECRAWL_SOURCES.items():
+        all_sources[k] = {**v, "_method": "firecrawl"}
 
     if source_list:
         targets = [s for s in source_list if s in all_sources]
