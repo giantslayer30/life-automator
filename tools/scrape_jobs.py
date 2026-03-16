@@ -322,41 +322,48 @@ def scrape_weworkremotely() -> list:
 
 
 def scrape_himalayas() -> list:
-    """Himalayas public jobs API. No auth needed."""
-    try:
-        resp = requests.get(
-            "https://himalayas.app/api/jobs",
-            params={"q": "product designer", "limit": 50},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data     = resp.json()
-        jobs_raw = data.get("jobs") if isinstance(data, dict) else data
-        if not isinstance(jobs_raw, list):
-            return []
-
-        results = []
-        for job in jobs_raw:
-            company_raw = job.get("company") or {}
-            company = (
-                company_raw.get("name")
-                if isinstance(company_raw, dict)
-                else str(company_raw)
+    """Himalayas public jobs API. No auth needed. Runs multiple queries."""
+    queries = [
+        {"q": "product designer", "limit": 50},
+        {"q": "UX designer India", "limit": 30},
+        {"q": "UI designer India", "limit": 30},
+    ]
+    all_results = []
+    for params in queries:
+        try:
+            resp = requests.get(
+                "https://himalayas.app/api/jobs",
+                params=params,
+                timeout=30,
             )
-            results.append({
-                "title":           job.get("title") or "",
-                "company":         company or "",
-                "location":        job.get("locationRestrictions") or job.get("location") or "Remote",
-                "remote":          True,
-                "employment_type": (job.get("jobType") or "").lower() or "full-time",
-                "salary":          None,
-                "description":     job.get("description") or "",
-                "url":             job.get("applicationUrl") or job.get("url") or "",
-            })
-        return results
-    except Exception as e:
-        print(f"  [error] {e}")
-        return []
+            resp.raise_for_status()
+            data     = resp.json()
+            jobs_raw = data.get("jobs") if isinstance(data, dict) else data
+            if not isinstance(jobs_raw, list):
+                continue
+
+            for job in jobs_raw:
+                company_raw = job.get("company") or {}
+                company = (
+                    company_raw.get("name")
+                    if isinstance(company_raw, dict)
+                    else str(company_raw)
+                )
+                loc = job.get("locationRestrictions") or job.get("location") or ""
+                is_remote = bool(job.get("remote")) or "remote" in loc.lower()
+                all_results.append({
+                    "title":           job.get("title") or "",
+                    "company":         company or "",
+                    "location":        loc or ("Remote" if is_remote else ""),
+                    "remote":          is_remote,
+                    "employment_type": (job.get("jobType") or "").lower() or "full-time",
+                    "salary":          None,
+                    "description":     job.get("description") or "",
+                    "url":             job.get("applicationUrl") or job.get("url") or "",
+                })
+        except Exception as e:
+            print(f"  [error] {e}")
+    return all_results
 
 
 def _jsearch_query(key: str, query: str, location: str = None, remote_only: bool = False) -> list:
@@ -441,7 +448,7 @@ def scrape_jsearch() -> list:
         {"query": "product designer", "label": "product designer remote", "remote_only": True},
         # LinkedIn hiring posts — people posting "hiring" for design roles
         {"query": "hiring product designer India", "label": "hiring posts India"},
-        {"query": "hiring UX designer remote India eligible", "label": "hiring posts remote India"},
+        {"query": "hiring UX designer India", "label": "hiring UX India"},
     ]
 
     for q in queries:
@@ -465,10 +472,6 @@ FIRECRAWL_SOURCES: dict = {
     },
     "naukri": {
         "url": "https://www.naukri.com/product-designer-jobs",
-        "region": "india", "tier": 1,
-    },
-    "internshala": {
-        "url": "https://internshala.com/jobs/ui-ux-design-jobs",
         "region": "india", "tier": 1,
     },
     "arc_dev": {
