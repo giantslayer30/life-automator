@@ -8,6 +8,7 @@ const SOURCE_COLORS = {
   we_work_remotely:   '#FF5850',
   himalayas:          '#6366F1',
   jsearch:            '#0A66C2',
+  visa_search:        '#10B981',
   wellfound:          '#000000',
   naukri:             '#4A90D9',
   behance:            '#1769FF',
@@ -41,6 +42,7 @@ const SOURCE_LABELS = {
   we_work_remotely:   'We Work Remotely',
   himalayas:          'Himalayas',
   jsearch:            'LinkedIn / Indeed',
+  visa_search:        'Visa Sponsorship',
   wellfound:          'Wellfound',
   naukri:             'Naukri',
   behance:            'Behance',
@@ -494,6 +496,8 @@ async function pollScrapeStatus() {
     if (!data.active && data.completed.length === 0) {
       // No scrape running or completed
       banner.style.display = 'none';
+      clearInterval(scrapePollInterval);
+      scrapePollInterval = null;
       return;
     }
 
@@ -516,7 +520,10 @@ async function pollScrapeStatus() {
       // Refresh job list and stats while scraping
       await Promise.all([loadJobs(getFilterParams()), loadScrapeStats()]);
     } else {
-      // Scrape just finished
+      // Scrape just finished — stop polling immediately
+      clearInterval(scrapePollInterval);
+      scrapePollInterval = null;
+
       const totalNew = data.completed.reduce((sum, s) => sum + (s.new || 0), 0);
       document.getElementById('scrape-banner-status').textContent = 'Scrape complete';
       document.getElementById('scrape-banner-detail').textContent =
@@ -525,6 +532,7 @@ async function pollScrapeStatus() {
       document.getElementById('scrape-banner-fill').style.width = '100%';
       document.getElementById('scrape-banner').querySelector('svg').classList.remove('spin');
 
+      // Final refresh — once only
       await Promise.all([loadJobs(getFilterParams()), loadScrapeStats()]);
 
       // Reset button
@@ -535,9 +543,6 @@ async function pollScrapeStatus() {
           <path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
         </svg>
         Refresh`;
-
-      clearInterval(scrapePollInterval);
-      scrapePollInterval = null;
 
       // Hide banner after a few seconds
       setTimeout(() => { banner.style.display = 'none'; }, 5000);

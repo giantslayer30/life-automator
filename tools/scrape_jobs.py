@@ -115,10 +115,29 @@ VISA_SIGNALS = [
     "global hiring", "international candidates",
 ]
 
+# Phrases that negate visa signals — if found near a visa keyword, skip it
+VISA_NEGATIONS = [
+    "no visa sponsorship", "not available", "no sponsorship",
+    "does not sponsor", "do not sponsor", "will not sponsor",
+    "cannot sponsor", "unable to sponsor", "not sponsor",
+    "without sponsorship", "no relocation", "not eligible for visa",
+    "visa sponsorship is not", "visa sponsorship not",
+    "sponsorship not available", "sponsorship is not available",
+    "no work visa", "not provide visa", "doesn't sponsor",
+    "don't sponsor", "won't sponsor",
+]
+
 
 def detect_visa(text: str) -> tuple:
-    """Return (tagged, triggering_terms) for visa/relocation signals."""
+    """Return (tagged, triggering_terms) for visa/relocation signals.
+
+    Checks for negation phrases first — if the text says
+    'no visa sponsorship' or 'does not sponsor', it's not tagged.
+    """
     lowered = text.lower()
+    # Check negations first
+    if any(neg in lowered for neg in VISA_NEGATIONS):
+        return False, []
     found = [s for s in VISA_SIGNALS if s in lowered]
     return bool(found), found
 
@@ -464,6 +483,87 @@ def scrape_jsearch() -> list:
     return all_results
 
 
+def scrape_visa_search() -> list:
+    """Firecrawl web search — discover career pages and job boards
+    with visa sponsorship + product design roles.
+
+    Step 1: Search the web for relevant pages (free search credits).
+    Step 2: Scrape the top results via Firecrawl extract (~1 credit each).
+    """
+    if not FIRECRAWL_API_KEY:
+        print("  [skip] FIRECRAWL_API_KEY not set")
+        return []
+
+    # Target company career pages and individual postings, NOT aggregators
+    # (Indeed/ZipRecruiter/LinkedIn block scraping)
+    search_queries = [
+        'senior product designer visa sponsorship -site:indeed.com -site:ziprecruiter.com -site:linkedin.com -site:glassdoor.com',
+        'product designer relocation sponsorship careers -site:indeed.com -site:ziprecruiter.com -site:linkedin.com -site:glassdoor.com',
+        '"product designer" "visa sponsorship" site:lever.co OR site:greenhouse.io OR site:ashbyhq.com OR site:jobs.lever.co',
+        '"product designer" "relocation" hiring site:lever.co OR site:greenhouse.io OR site:ashbyhq.com OR site:workable.com',
+    ]
+
+    headers = {
+        "Authorization": f"Bearer {FIRECRAWL_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    # Step 1: Collect unique URLs from search results
+    seen_urls = set()
+    urls_to_scrape = []
+
+    for query in search_queries:
+        try:
+            resp = requests.post(
+                f"{FIRECRAWL_BASE_URL}/search",
+                headers=headers,
+                json={"query": query, "limit": 3},
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                data = resp.json().get("data") or []
+                for item in data:
+                    url = item.get("url") or ""
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
+                        urls_to_scrape.append(url)
+                        print(f"    [found] {item.get('title', '')[:60]}")
+            else:
+                print(f"    [error {resp.status_code}] search: {query[:50]}")
+        except Exception as e:
+            print(f"    [error] {e}")
+        time.sleep(0.5)
+
+    # Cap at 5 pages to limit credit usage
+    urls_to_scrape = urls_to_scrape[:5]
+    print(f"  [visa search] Scraping {len(urls_to_scrape)} pages…")
+
+    # Step 2: Scrape each URL with Firecrawl extract
+    all_jobs = []
+    for url in urls_to_scrape:
+        print(f"    [scrape] {url[:70]}…")
+        result = firecrawl_scrape(url)
+        if not result:
+            continue
+        jobs_raw = []
+        if "extract" in result and isinstance(result["extract"], dict):
+            jobs_raw = result["extract"].get("jobs") or []
+        elif "data" in result and isinstance(result["data"], dict):
+            jobs_raw = result["data"].get("extract", {}).get("jobs") or []
+
+        # Tag all jobs from this source with visa by default
+        # (they came from a visa sponsorship search)
+        for job in jobs_raw:
+            if job.get("visa_sponsorship") is None:
+                job["visa_sponsorship"] = True
+        all_jobs.extend(jobs_raw)
+        print(f"    [ok] {len(jobs_raw)} jobs extracted")
+        time.sleep(1)
+
+    print(f"  [visa search] {len(all_jobs)} total jobs from {len(urls_to_scrape)} pages")
+    return all_jobs
+
+
 # ------------------------------------------------------------------
 # Source registries
 # ------------------------------------------------------------------
@@ -518,6 +618,11 @@ NATIVE_SOURCES: dict = {
     "jsearch": {
         "fn": scrape_jsearch,
         "label": "JSearch / LinkedIn + Indeed (RapidAPI free tier)",
+        "region": "global", "tier": 1,
+    },
+    "visa_search": {
+        "fn": scrape_visa_search,
+        "label": "Visa Sponsorship Search (Firecrawl web search)",
         "region": "global", "tier": 1,
     },
     "remote_ok": {

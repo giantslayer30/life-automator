@@ -92,6 +92,7 @@ scrape_progress = {
     "completed": [],
     "total_sources": 0,
     "started_at": None,
+    "finished_at": None,
 }
 _scrape_lock = threading.Lock()
 
@@ -169,6 +170,7 @@ def _run_scrape_with_progress(source_list=None, tier_val=1):
     with _scrape_lock:
         scrape_progress["active"] = False
         scrape_progress["current_source"] = None
+        scrape_progress["finished_at"] = datetime.now(timezone.utc).isoformat()
 
 
 # Initialize DB on startup
@@ -525,9 +527,19 @@ async def trigger_scrape(
 
 @app.get("/api/scrape/status")
 async def scrape_status():
-    """Return current scrape progress for the frontend."""
+    """Return current scrape progress for the frontend.
+
+    Once a finished scrape has been read, clear the completed list so
+    subsequent page loads don't re-trigger the 'just finished' UI.
+    """
     with _scrape_lock:
-        return dict(scrape_progress)
+        snapshot = dict(scrape_progress)
+        # If scrape is done and has results, clear them after returning
+        # so the next poll/page-load sees a clean state.
+        if not scrape_progress["active"] and scrape_progress["completed"]:
+            scrape_progress["completed"] = []
+            scrape_progress["finished_at"] = None
+    return snapshot
 
 
 # ------------------------------------------------------------------
